@@ -1,0 +1,14 @@
+# Doxyfile.in
+
+OUTPUT_DIRECTORY       = @CMAKE_CURRENT_BINARY_DIR@/docs
+
+INPUT                  = @DOXYGEN_INPUT_PATHS@
+
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.hpp *.c *.cpp *.md
+EXTENSION_MAPPING      = md=markdown
+
+STRIP_FROM_PATH        = @CMAKE_CURRENT_SOURCE_DIR@
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO

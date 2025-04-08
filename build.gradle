@@ -1,0 +1,54 @@
+// This Gradle build script is used in conjunction with the CMake-based C++ build system.
+// - The C++ code is built using CMake, and Gradle ensures that the C++ build process is executed
+//   by invoking the necessary CMake commands through the 'buildC++' task.
+
+def buildDirPath = "${projectDir}/build"
+def toolchainFile = file("${projectDir}/toolchain.cmake")
+
+tasks.register('cleanAll', Delete) {
+    delete buildDirPath
+}
+
+tasks.register('clean') {
+    doLast {
+        mkdir(buildDirPath)
+
+        exec {
+            workingDir buildDirPath
+            // Use platform-independent command
+            commandLine 'cmake', '--build', '.', '--target', 'clean'
+        }
+    }
+}
+
+tasks.register('build') {
+    doLast {
+        mkdir(buildDirPath)
+
+        def cmakeArgs = ['cmake', '..', '-G', 'Ninja']
+        if (toolchainFile.exists()) {
+            cmakeArgs += "-DCMAKE_TOOLCHAIN_FILE=${toolchainFile}"
+        }
+
+        exec {
+            workingDir buildDirPath
+            commandLine cmakeArgs
+        }
+
+        exec {
+            workingDir buildDirPath
+            commandLine 'cmake', '--build', '.'
+        }
+    }
+}
+
+tasks.register('runTests') {
+    dependsOn 'build'
+
+    doLast {
+        exec {
+            workingDir buildDirPath
+            commandLine 'ninja', 'runUnitTests'
+        }
+    }
+}
