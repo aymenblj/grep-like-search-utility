@@ -33,6 +33,9 @@ elseif(APPLE)
         set(CMAKE_CXX_COMPILER "${GXX_EXECUTABLE}")
     endif()
 
+    # Add pthread library for Linux
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
     message(STATUS "Using C++ Compiler: ${CMAKE_CXX_COMPILER}")
     add_compile_options(-Wall -Wextra -Wpedantic)
 
@@ -46,6 +49,9 @@ elseif(UNIX)
         message(FATAL_ERROR "g++ not found! Install GCC with your package manager (e.g., apt, yum, pacman).")
     endif()
 
+    # Add pthread library for Linux
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+    
     set(CMAKE_CXX_COMPILER "${GXX_EXECUTABLE}")
     message(STATUS "Using C++ Compiler: ${CMAKE_CXX_COMPILER}")
 
