@@ -30,5 +30,5 @@ add_subdirectory(unitTests)
 
 include(dependencies/doxygen.cmake)
 
-# Call the function (no arguments needed for minimalist)
+# Configure and generate Doxygen documentation
 add_doxygen_target()

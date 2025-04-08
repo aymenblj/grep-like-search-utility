@@ -104,3 +104,45 @@ TEST_F(GrepUtilityTest, ThreadedSearchExecutesCorrectly) {
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.find("test1.txt") != std::string::npos);
 }
+
+TEST_F(GrepUtilityTest, RegexSpecialCharactersShouldBeHandled) {
+    createTestFile("test_regex.txt", "Question? Dot. Star*");
+    TextFileSearcher searcher;
+    testing::internal::CaptureStdout();
+    searcher.search("examples/test_regex.txt", "Question\\?", false, false, true);
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("Question?") != std::string::npos);
+}
+
+TEST_F(GrepUtilityTest, EmptyFileShouldProduceNoOutput) {
+    createTestFile("empty.txt", "");
+    TextFileSearcher searcher;
+    testing::internal::CaptureStdout();
+    searcher.search("examples/empty.txt", "hello", false, false, false);
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.empty());
+}
+
+TEST_F(GrepUtilityTest, FileWithOnlyNewlinesShouldNotMatch) {
+    createTestFile("only_newlines.txt", "\n\n\n");
+    TextFileSearcher searcher;
+    testing::internal::CaptureStdout();
+    searcher.search("examples/only_newlines.txt", "hello", false, false, false);
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.empty());
+}
+
+TEST_F(GrepUtilityTest, HighlightWithRegexShouldColorAllMatches) {
+    std::string line = "highlight this highlight that";
+    std::string highlighted = highlightMatches(line, "highlight", false, true); // regex
+    EXPECT_NE(highlighted.find("\033[33mhighlight\033[0m"), std::string::npos);
+}
+
+TEST_F(GrepUtilityTest, MultipleMatchesInOneLine) {
+    createTestFile("multi.txt", "test test test");
+    TextFileSearcher searcher;
+    testing::internal::CaptureStdout();
+    searcher.search("examples/multi.txt", "test", false, false, false);
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("test test test") != std::string::npos);
+}

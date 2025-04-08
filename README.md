@@ -23,6 +23,33 @@ A multi-threaded, cross-platform C++ utility for recursively searching through d
 - Gradle (optional)
 - Doxygen (optional)
 
+### Post Build: Install Optional Tools
+
+These tools are optional but recommended for full development workflow (faster builds, documentation, extra Gradle-based tasks).
+
+<details>
+<summary><strong> Ubuntu / Debian</strong></summary>
+
+```bash
+sudo apt-get update
+sudo apt-get install ninja-build doxygen gradle
+```
+
+</details> <details> <summary><strong> macOS (with Homebrew)</strong></summary>
+
+```bash
+brew update
+brew install ninja doxygen gradle
+```
+
+</details> <details> <summary><strong> Windows (with Chocolatey)</strong></summary>
+Run Command Prompt or PowerShell as Administrator:
+
+```bash
+choco install ninja doxygen gradle
+```
+</details>
+
 ### Build
 
 ```bash
@@ -31,13 +58,13 @@ cmake -G"Ninja" .. -DCMAKE_TOOLCHAIN_FILE=../toolchain.cmake
 ninja
 ```
 
-### Running unit tests
+### Run unit tests
 
 ```bash
 ninja runUnitTests
 ```
 
-### Alternatively, running the Gradle Tasks (optional)
+### Alternatively, run the Gradle Tasks (optional)
 
 ```bash
 # Build the project
