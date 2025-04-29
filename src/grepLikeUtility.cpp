@@ -33,64 +33,51 @@ std::string highlightMatches(const std::string& line, const std::string& query, 
     std::string result;
 
     if (!useRegex) {
-        // Handle plain substring matching
-        std::string queryToFind = query;
-        std::string lineContent = line;
+        const std::string& searchBase = caseSensitive ? line : [&] {
+            static thread_local std::string lowered;
+            lowered = line;
+            std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+            return lowered;
+        }();
 
-        // If not case-sensitive, convert both the line and query to lowercase for comparison
+        std::string loweredQuery = query;
         if (!caseSensitive) {
-            std::transform(queryToFind.begin(), queryToFind.end(), queryToFind.begin(), ::tolower);
-            std::string loweredLine = lineContent;
-            std::transform(loweredLine.begin(), loweredLine.end(), loweredLine.begin(), ::tolower);
-
-            size_t position = 0;
-            while (position < loweredLine.size()) {
-                size_t found = loweredLine.find(queryToFind, position);
-                if (found == std::string::npos) {
-                    result += lineContent.substr(position);  // Append remaining text
-                    break;
-                }
-                // Append unmatched part and then highlight the matched substring
-                result += lineContent.substr(position, found - position);
-                result += COLOR_YELLOW + lineContent.substr(found, query.length()) + COLOR_RESET;
-                position = found + query.length();
-            }
-        } else {
-            // Case-sensitive substring search
-            size_t position = 0;
-            while (position < lineContent.size()) {
-                size_t found = lineContent.find(query, position);
-                if (found == std::string::npos) {
-                    result += lineContent.substr(position);
-                    break;
-                }
-                result += lineContent.substr(position, found - position);
-                result += COLOR_YELLOW + lineContent.substr(found, query.length()) + COLOR_RESET;
-                position = found + query.length();
-            }
+            std::transform(loweredQuery.begin(), loweredQuery.end(), loweredQuery.begin(), ::tolower);
         }
+
+        size_t pos = 0;
+        while (true) {
+            size_t found = searchBase.find(loweredQuery, pos);
+            if (found == std::string::npos) {
+                result += line.substr(pos);  // append remaining unmatched
+                break;
+            }
+
+            result += line.substr(pos, found - pos); // unmatched part
+            result += COLOR_YELLOW + line.substr(found, query.length()) + COLOR_RESET;
+            pos = found + query.length();
+        }
+
     } else {
-        // Use regex matching
         std::regex_constants::syntax_option_type flags = std::regex::ECMAScript;
         if (!caseSensitive) flags |= std::regex::icase;
 
         try {
             std::regex pattern(query, flags);
-            std::sregex_iterator begin(line.begin(), line.end(), pattern), end;
+            std::sregex_iterator it(line.begin(), line.end(), pattern);
+            std::sregex_iterator end;
             size_t lastPos = 0;
 
-            // Iterate through all matches and color them
-            for (auto it = begin; it != end; ++it) {
-                auto match = *it;
-                result += line.substr(lastPos, match.position() - lastPos);
-                result += COLOR_YELLOW + match.str() + COLOR_RESET;
-                lastPos = match.position() + match.length();
+            for (; it != end; ++it) {
+                result += line.substr(lastPos, it->position() - lastPos);           // unmatched part
+                result += COLOR_YELLOW + it->str() + COLOR_RESET;                  // matched part
+                lastPos = it->position() + it->length();
             }
-            // Append any remaining part of the line
-            result += line.substr(lastPos);  
-        } catch (std::regex_error&) {
-            // Handle invalid regex pattern gracefully
-            return line + " [regex error]";  
+
+            result += line.substr(lastPos);  // remaining unmatched
+
+        } catch (const std::regex_error&) {
+            return line + " [regex error]";
         }
     }
 
@@ -109,8 +96,9 @@ std::string highlightMatches(const std::string& line, const std::string& query, 
  * @param highlight      Whether to highlight matches in the output.
  * @param useRegex       Whether to interpret the query as a regex.
  */
-void TextFileSearcher::search(const std::filesystem::path& filePath, const std::string& query,
-                              bool caseSensitive, bool highlight, bool useRegex) {
+void TextFileSearcher::search(const std::filesystem::path &filePath, const std::string &query,
+                              bool caseSensitive, bool highlight, bool useRegex, const std::string &threadIdStr)
+{
     std::ifstream file(filePath);
     if (!file.is_open()) {
         std::lock_guard<std::mutex> lock(coutMutex);
@@ -118,42 +106,52 @@ void TextFileSearcher::search(const std::filesystem::path& filePath, const std::
         return;
     }
 
+    std::regex pattern;
+    std::string loweredQuery;
+    bool validRegex = true;
+
+    // Preprocess pattern or loweredQuery outside loop
+    if (useRegex) {
+        std::regex_constants::syntax_option_type flags = std::regex::ECMAScript;
+        if (!caseSensitive)
+            flags |= std::regex::icase;
+        try {
+            pattern = std::regex(query, flags);
+        }
+        catch (...) {
+            validRegex = false;
+        }
+    }
+    else if (!caseSensitive) {
+        loweredQuery = query;
+        std::transform(loweredQuery.begin(), loweredQuery.end(), loweredQuery.begin(), ::tolower);
+    }
+
     std::string line;
     int lineNumber = 0;
-
-    // Process file line by line
     while (std::getline(file, line)) {
-        lineNumber++;
+        ++lineNumber;
         bool matched = false;
-        std::string currentLine = line;
 
-        if (!useRegex && !caseSensitive) {
-            // Transform to Lowercase both line and query for comparison
-            std::string loweredLine = currentLine;
-            std::string loweredQuery = query;
+        if (useRegex && validRegex) {
+            matched = std::regex_search(line, pattern);
+        }
+        else if (!useRegex && !caseSensitive) {
+            std::string loweredLine = line;
             std::transform(loweredLine.begin(), loweredLine.end(), loweredLine.begin(), ::tolower);
-            std::transform(loweredQuery.begin(), loweredQuery.end(), loweredQuery.begin(), ::tolower);
             matched = loweredLine.find(loweredQuery) != std::string::npos;
-        } else if (!useRegex) {
-            // Plain case-sensitive substring search
-            matched = currentLine.find(query) != std::string::npos;
-        } else {
-            // Regex search with error handling
-            try {
-                std::regex_constants::syntax_option_type flags = std::regex::ECMAScript;
-                if (!caseSensitive) flags |= std::regex::icase;
-                std::regex pattern(query, flags);
-                matched = std::regex_search(currentLine, pattern);
-            } catch (...) {
-                matched = false;
-            }
+        }
+        else if (!useRegex) {
+            matched = line.find(query) != std::string::npos;
         }
 
         if (matched) {
-            // Ensure the printing is thread-safe
-            std::lock_guard<std::mutex> lock(coutMutex);  
-            std::string outputLine = highlight ? highlightMatches(line, query, caseSensitive, useRegex) : line;
-            std::cout << filePath.string() << ":" << lineNumber << ": " << outputLine << std::endl;
+            std::lock_guard<std::mutex> lock(coutMutex);
+            std::cout << filePath.string() << ":" << lineNumber << ": [Thread " << threadIdStr << "] ";
+            if (highlight)
+                std::cout << highlightMatches(line, query, caseSensitive, useRegex) << std::endl;
+            else
+                std::cout << line << std::endl;
         }
     }
 }
@@ -184,7 +182,7 @@ SearchManager::SearchManager(std::unique_ptr<FileSearcher> searcher,
  * @param dirPath The path to the root directory for searching.
  */
 void SearchManager::searchInDirectory(const std::filesystem::path& dirPath) {
-    if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath)) {
+    if (!std::filesystem::is_directory(dirPath)) {
         std::cerr << "Error: Invalid directory - " << dirPath << std::endl;
         return;
     }
@@ -193,27 +191,50 @@ void SearchManager::searchInDirectory(const std::filesystem::path& dirPath) {
     std::vector<std::filesystem::path> files;
     for (const auto& entry : std::filesystem::recursive_directory_iterator(dirPath)) {
         if (entry.is_regular_file()) {
-            files.push_back(entry.path());
+            files.emplace_back(entry.path());
         }
     }
 
-    // Divide files over threads
-    size_t filesPerThread = files.size() / numThreads_;
+    size_t threadCount = std::min(numThreads_, files.size());
+    size_t filesPerThread = files.size() / threadCount;
+    size_t remainingFiles = files.size() % threadCount;
+
     std::vector<std::thread> threads;
+    auto beginIt = files.begin();
 
-    for (size_t  i = 0; i < numThreads_; ++i) {
-        // Calculate range of files for each thread
-        auto start = files.begin() + i * filesPerThread;
-        auto end = (i == numThreads_ - 1) ? files.end() : start + filesPerThread;
+    for (size_t i = 0; i < threadCount; ++i) {
+        // Calculate start and end iterators for each thread
+        auto endIt = beginIt + filesPerThread + (i < remainingFiles ? 1 : 0);
 
-        // Create a new thread to process a subset of files from 'start' to 'end'
-        threads.emplace_back([this, start, end]() {
-            // Iterate through the files in the specified range (from 'start' to 'end')
-            for (auto it = start; it != end; ++it) {
-                // Perform the search operation for each file in the range
-                searcher_->search(*it, query_, caseSensitive_, highlight_, useRegex_);
+        threads.emplace_back([this, beginItCopy = beginIt, endItCopy = endIt]() {
+            std::thread::id thisId = std::this_thread::get_id();
+            int threadNumber;
+
+            {
+                std::lock_guard<std::mutex> lock(threadIdMutex_);
+                auto [it, inserted] = threadIdMap_.try_emplace(thisId, nextThreadId_++);
+                threadNumber = it->second;
+            }
+
+            // {
+            //     std::lock_guard<std::mutex> lock(TextFileSearcher::coutMutex);
+            //     std::cout << "Thread " << threadNumber << " assigned files: ";
+            //     for (auto it = beginItCopy; it != endItCopy; ++it)
+            //         std::cout << "  " << it->string() << "\n";
+            // }
+
+            {
+                std::lock_guard<std::mutex> lock(TextFileSearcher::coutMutex);
+                std::cout << "Thread " << threadNumber << " assigned " 
+                          << std::distance(beginItCopy, endItCopy) << " file(s)\n";
+            }
+
+            for (auto it = beginItCopy; it != endItCopy; ++it) {
+                searcher_->search(*it, query_, caseSensitive_, highlight_, useRegex_, std::to_string(threadNumber));
             }
         });
+
+        beginIt = endIt; // Advance to next chunk
     }
 
     // Wait for all threads to complete execution
@@ -221,3 +242,4 @@ void SearchManager::searchInDirectory(const std::filesystem::path& dirPath) {
         thread.join();
     }
 }
+

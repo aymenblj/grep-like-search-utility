@@ -21,7 +21,8 @@ function(add_doxygen_target)
     if(EXISTS ${DOXYFILE_IN})
       # Let user provide a template Doxyfile.in
       list(JOIN DOXYGEN_INPUT_DIRS " " DOXYGEN_INPUT_PATHS)
-      configure_file(${DOXYFILE_IN} ${DOXYFILE_OUT} @ONLY)
+      # read Doxyfile.in, replace @VARIABLE@ placeholders with actual CMake values, and write the result to Doxyfile.
+      configure_file(${DOXYFILE_IN} ${DOXYFILE_OUT} @ONLY) 
     else()
       # Or fallback to a very basic in-place file
       file(WRITE ${DOXYFILE_OUT}
@@ -46,6 +47,8 @@ USE_MDFILE_AS_MAINPAGE = README.md
       VERBATIM
     )
 
+    #  ALL : the target is built by default when you run make or ninja
+    # optional : Build Documentation Separately add_custom_target(doc DEPENDS ${DOXYGEN_OUTPUT_DIR}/html/index.html)
     add_custom_target(doc ALL DEPENDS ${DOXYGEN_OUTPUT_DIR}/html/index.html)
   endif()
 endfunction()

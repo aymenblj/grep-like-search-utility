@@ -7,6 +7,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <map>
 
 /**
  * @brief Abstract interface for performing query search.
@@ -34,7 +35,7 @@ public:
      * @param useRegex       Whether to interpret the query as a regex.
      */
     virtual void search(const std::filesystem::path& filePath, const std::string& query,
-                        bool caseSensitive, bool highlight, bool useRegex) = 0;
+                        bool caseSensitive, bool highlight, bool useRegex, const std::string& threadIdStr = "") = 0;
 
     virtual ~FileSearcher() = default;
 };
@@ -47,12 +48,14 @@ public:
  */
 class TextFileSearcher : public FileSearcher {
 public:
-    void search(const std::filesystem::path& filePath, const std::string& query,
-                bool caseSensitive, bool highlight, bool useRegex) override;
+void search(const std::filesystem::path& filePath, const std::string& query,
+    bool caseSensitive, bool highlight, bool useRegex,
+    const std::string& threadIdStr) override;
 
 private:
     ///< Mutex to synchronize multi-threaded console output.
     static std::mutex coutMutex;
+    friend class SearchManager;
 };
 
 /**
@@ -84,13 +87,18 @@ public:
      */
     void searchInDirectory(const std::filesystem::path& dirPath);
 
+    size_t getNumThreads() const {return numThreads_; }
+
 private:
-    std::unique_ptr<FileSearcher> searcher_;  ///< The searcher implementation to use. 
-    std::string query_;                       ///< The search term or pattern.
-    bool caseSensitive_;                      ///< Whether the search is case-sensitive.
-    bool highlight_;                          ///< Whether to highlight the matches.
-    bool useRegex_;                           ///< Whether the query is a regex.
-    size_t numThreads_ = std::thread::hardware_concurrency(); ///< Number of threads to use.
+    std::unique_ptr<FileSearcher> searcher_;
+    std::string query_;      
+    bool caseSensitive_;           
+    bool highlight_;                       
+    bool useRegex_;                          
+    size_t numThreads_ = std::thread::hardware_concurrency();
+    std::mutex threadIdMutex_;
+    std::map<std::thread::id, int> threadIdMap_;
+    std::atomic<int> nextThreadId_{1};
 };
 
 /**

@@ -28,20 +28,20 @@ protected:
 TEST_F(GrepUtilityTest, CaseSensitiveSearchShouldMatchExact) {
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/test1.txt", "Hello", true, false, false);  // Adding useRegex flag
+    searcher.search("examples/test1.txt", "Hello", true, false, false, "");  // Adding useRegex flag
     std::string output = testing::internal::GetCapturedStdout();
-    EXPECT_TRUE(output.find("examples/test1.txt:1: Hello World") != std::string::npos);
-    EXPECT_FALSE(output.find("examples/test1.txt:2: hello earth") != std::string::npos);
+    EXPECT_TRUE(output.find("examples/test1.txt:1: [Thread ] Hello World") != std::string::npos);
+    EXPECT_FALSE(output.find("examples/test1.txt:2: [Thread ] hello earth") != std::string::npos);
 }
 
 TEST_F(GrepUtilityTest, CaseInsensitiveSearchShouldMatchAllVariants) {
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/test1.txt", "hello", false, false, false);  // Adding useRegex flag
+    searcher.search("examples/test1.txt", "hello", false, false, false, "");  // Adding useRegex flag
     std::string output = testing::internal::GetCapturedStdout();        
-    EXPECT_TRUE(output.find("examples/test1.txt:1: Hello World") != std::string::npos);
-    EXPECT_TRUE(output.find("examples/test1.txt:2: hello earth") != std::string::npos);
-    EXPECT_TRUE(output.find("examples/test1.txt:3: HELLO Galaxy") != std::string::npos);
+    EXPECT_TRUE(output.find("examples/test1.txt:1: [Thread ] Hello World") != std::string::npos);
+    EXPECT_TRUE(output.find("examples/test1.txt:2: [Thread ] hello earth") != std::string::npos);
+    EXPECT_TRUE(output.find("examples/test1.txt:3: [Thread ] HELLO Galaxy") != std::string::npos);
 }
 
 TEST_F(GrepUtilityTest, HighlightedOutputShouldContainColorCodes) {
@@ -54,24 +54,24 @@ TEST_F(GrepUtilityTest, HighlightedOutputShouldContainColorCodes) {
 TEST_F(GrepUtilityTest, RegexSearchShouldMatchPattern) {
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/test2.txt", "colo.*", false, false, true);  // Adding useRegex flag
+    searcher.search("examples/test2.txt", "colo.*", false, false, true, "");  // Adding useRegex flag
     std::string output = testing::internal::GetCapturedStdout();
-    EXPECT_TRUE(output.find("examples/test2.txt:1: Testing colors") != std::string::npos);
-    EXPECT_TRUE(output.find("examples/test2.txt:3: colors again") != std::string::npos);
+    EXPECT_TRUE(output.find("examples/test2.txt:1: [Thread ] Testing colors") != std::string::npos);
+    EXPECT_TRUE(output.find("examples/test2.txt:3: [Thread ] colors again") != std::string::npos);
 }
 
 TEST_F(GrepUtilityTest, RegexSearchWithCaseInsensitiveFlag) {
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/test1.txt", "HELLO", false, false, true);  // Adding useRegex flag
+    searcher.search("examples/test1.txt", "hello", false, false, true, "");  // Adding useRegex flag
     std::string output = testing::internal::GetCapturedStdout();
-    EXPECT_TRUE(output.find("examples/test1.txt:3: HELLO Galaxy") != std::string::npos);
+    EXPECT_TRUE(output.find("examples/test1.txt:3: [Thread ] HELLO Galaxy") != std::string::npos);
 }
 
 TEST_F(GrepUtilityTest, NoMatchShouldProduceNoOutput) {
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/test3.txt", "unmatched", true, false, false);  // Adding useRegex flag
+    searcher.search("examples/test3.txt", "unmatched", true, false, false, "");  // Adding useRegex flag
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.empty());
 }
@@ -94,6 +94,7 @@ TEST_F(GrepUtilityTest, RecursiveSearchFindsInAllFiles) {
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.find("test2.txt") != std::string::npos);
     EXPECT_TRUE(output.find("colors again") != std::string::npos);
+    EXPECT_EQ(manager.getNumThreads(), 16);
 }
 
 TEST_F(GrepUtilityTest, ThreadedSearchExecutesCorrectly) {
@@ -103,13 +104,14 @@ TEST_F(GrepUtilityTest, ThreadedSearchExecutesCorrectly) {
     manager.searchInDirectory("examples");
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.find("test1.txt") != std::string::npos);
+    EXPECT_EQ(manager.getNumThreads(), 16);
 }
 
 TEST_F(GrepUtilityTest, RegexSpecialCharactersShouldBeHandled) {
     createTestFile("test_regex.txt", "Question? Dot. Star*");
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/test_regex.txt", "Question\\?", false, false, true);
+    searcher.search("examples/test_regex.txt", "Question\\?", false, false, true, "");
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.find("Question?") != std::string::npos);
 }
@@ -118,7 +120,7 @@ TEST_F(GrepUtilityTest, EmptyFileShouldProduceNoOutput) {
     createTestFile("empty.txt", "");
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/empty.txt", "hello", false, false, false);
+    searcher.search("examples/empty.txt", "hello", false, false, false, "");
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.empty());
 }
@@ -127,7 +129,7 @@ TEST_F(GrepUtilityTest, FileWithOnlyNewlinesShouldNotMatch) {
     createTestFile("only_newlines.txt", "\n\n\n");
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/only_newlines.txt", "hello", false, false, false);
+    searcher.search("examples/only_newlines.txt", "hello", false, false, false, "");
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.empty());
 }
@@ -142,7 +144,7 @@ TEST_F(GrepUtilityTest, MultipleMatchesInOneLine) {
     createTestFile("multi.txt", "test test test");
     TextFileSearcher searcher;
     testing::internal::CaptureStdout();
-    searcher.search("examples/multi.txt", "test", false, false, false);
+    searcher.search("examples/multi.txt", "test", false, false, false, "");
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.find("test test test") != std::string::npos);
 }
